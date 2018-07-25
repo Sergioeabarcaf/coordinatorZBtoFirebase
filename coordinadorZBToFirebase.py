@@ -1,23 +1,61 @@
-# https://github.com/niolabs/python-xbee
-from xbee import XBee, ZigBee
+#! /usr/bin/python
+
+"""
+HumidityTempZigBee.py
+
+Copyright 2012, Helmut Strey
+
+This is a python script that receives and outputs the humidity and temperature
+that was wirelessly transmitted from a DHT 22 / ZigBee RF module.
+
+HumindityTempZigBee is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see http://www.gnu.org/licenses/.
+
+"""
+
+from xbee import ZigBee
 import serial
+import struct
 
-# Cambiar por puerto donde esta conectado el Xbee explorer
-port = "/dev/ttyUSB0"
+PORT = '/dev/ttyUSB0'
+BAUD_RATE = 9600
 
-# Abrir puerto serial
-ser = serial.Serial(port, 9600)
+def hex(bindata):
+   return ''.join('%02x' % ord(byte) for byte in bindata)
 
-# Crear objeto Zigbee
-xbee = XBee(ser)
+# Open serial port
+ser = serial.Serial(PORT, BAUD_RATE)
 
-# Obtener data enviada al coordinador y mostrarla por pantalla
+# Create API object
+xbee = ZigBee(ser,escaped=True)
+
+# Continuously read and print packets
 while True:
-    try:
-        incoming = ser.readline().strip()
-        print incoming
-        res = xbee.wait_read_frame()
-        print res
-    except KeyboardInterrupt:
-        break
+   try:
+       response = xbee.wait_read_frame()
+       sa = hex(response['source_addr_long'][4:])
+       rf = hex(response['rf_data'])
+       datalength=len(rf)
+       # if datalength is compatible with two floats
+       # then unpack the 4 byte chunks into floats
+       if datalength==16:
+           h=struct.unpack('f',response['rf_data'][0:4])[0]
+           t=struct.unpack('f',response['rf_data'][4:])[0]
+           print 'sa:{}, rf:{}, t={}, h={}'.format(sa,rf,t,h)
+       # if it is not two floats show me what I received
+       else:
+           print 'sa:{}, rf:{}'.format(sa,rf)
+   except KeyboardInterrupt:
+       break
+
 ser.close()
